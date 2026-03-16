@@ -6,6 +6,8 @@ import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error
 from xgboost import XGBRegressor
+import time
+from sklearn.inspection import permutation_importance
 df = pd.read_excel('data.xlsx')
 columns = ["Urban_name","NDVI_urb_CT_act","DelNDVI_annual","DelDEM","UHI_annual_day"]
 df = df[columns]
@@ -17,10 +19,24 @@ This software predicts and compares UHI intensity using a formula-based model an
 """
 )
 
+#time
+if "start_time" not in st.session_state:
+    st.session_state["start_time"] = None
+if "timings" not in st.session_state:
+    st.session_state["timings"] = []
+if "recorded_this_run" not in st.session_state:
+    st.session_state["recorded_this_run"] = False
+
+def record_start_time():
+    st.session_state["start_time"] = time.time()
+    st.session_state["recorded_this_run"] = False
+
 #select + display city data
 city = st.selectbox(
     "Select and Urban Area:",
-    sorted(df["Urban_name"].unique())
+    sorted(df["Urban_name"].unique()),
+    key="city",
+    on_change=record_start_time
 )
 city_data = df[df["Urban_name"]== city]
 st.subheader(f"City Data")
@@ -34,11 +50,11 @@ uhi_actual = city_data["UHI_annual_day"].mean()
 
 #sliders
 st.subheader("Simulate Changes")
-ndvi_input = st.slider("Urban NDVI",0.0,1.0, float(ndvi),0.01)
-del_ndvi_input = st.slider("ΔNDVI (Urban-Rural))",-0.5,0.5, float(del_ndvi),0.01)
-del_dem_input = st.slider("ΔDEM (Elevation Difference in m))",-50.0,50.0, float(del_dem),0.1)
-albedo_input = st.slider("Albedo (0-1)",0.1,0.9,0.3,0.01)
-urban_frac_input = st.slider("Urban Fraction (0-1)",0.0,1.0,0.5,0.01)
+ndvi_input = st.slider("Urban NDVI",0.0,1.0, float(ndvi),0.01, key="ndvi_input", on_change=record_start_time)
+del_ndvi_input = st.slider("ΔNDVI (Urban-Rural))",-0.5,0.5, float(del_ndvi),0.01, key="del_ndvi_input", on_change=record_start_time)
+del_dem_input = st.slider("ΔDEM (Elevation Difference in m))",-50.0,50.0, float(del_dem),0.1, key="del_dem_input", on_change=record_start_time)
+albedo_input = st.slider("Albedo (0-1)",0.1,0.9,0.3,0.01, key="albedo_input", on_change=record_start_time)
+urban_frac_input = st.slider("Urban Fraction (0-1)",0.0,1.0,0.5,0.01, key="urban_frac_input", on_change=record_start_time)
 del_dem_input_scale = del_dem_input/100
 #formula model
 X_phys = pd.DataFrame({
@@ -88,6 +104,8 @@ fig2 = px.bar(comparison_df, x="Type", y="UHI (°C)", text = "UHI (°C)",title="
 st.plotly_chart(fig2)
 
 #ML model
+
+#leave one out
 train_df = (
     df[df["Urban_name"] != city]
     .groupby("Urban_name")
@@ -107,7 +125,8 @@ y_train = train_df["UHI_annual_day"]
 
 x_test = test_df[["NDVI_urb_CT_act", "DelNDVI_annual", "DelDEM"]]
 y_test = test_df["UHI_annual_day"]
-
+x_train = x_train.copy()
+x_test = x_test.copy()
 x_train["DelDEM"] = x_train["DelDEM"] / 100
 x_test["DelDEM"] = x_test["DelDEM"] / 100
 
@@ -207,4 +226,24 @@ fig_error = px.bar(
 )
 st.plotly_chart(fig_error)
 
-#testing result
+x_all = df[["NDVI_urb_CT_act","DelNDVI_annual","DelDEM"]].copy()
+y_all = df["UHI_annual_day"]
+x_all["DelDEM"] /= 100
+ml_model.fit(x_all, y_all)
+perm = permutation_importance(ml_model, x_all, y_all, n_repeats=5, random_state=42, scoring="neg_mean_absolute_error")
+perm_df = pd.DataFrame({"Feature": x_all.columns, "Permutation Importance": perm.importances_mean}).sort_values("Permutation Importance", ascending=False)
+st.subheader("Permutation Importance (ML Features)")
+st.dataframe(perm_df)
+fig_perm = px.bar(perm_df, x="Feature", y="Permutation Importance", title="Permutation Importance of Features", text_auto=".3f")
+st.plotly_chart(fig_perm)
+
+start = st.session_state.get("start_time")
+if start:
+    elapsed = time.time() - start
+    st.write(f"**Execution time:** {elapsed:.3f} seconds")
+    if not st.session_state.get("recorded_this_run", False):
+        st.session_state["timings"].append(elapsed)
+        st.session_state["recorded_this_run"] = True
+if st.session_state.get("timings"):
+    avg = sum(st.session_state["timings"]) / len(st.session_state["timings"]) 
+    st.write(f"**Average loading time:** {avg:.3f} seconds")
