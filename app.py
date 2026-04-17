@@ -50,11 +50,11 @@ uhi_actual = city_data["UHI_annual_day"].mean()
 
 #sliders
 st.subheader("Simulate Changes")
-ndvi_input = st.slider("Urban NDVI",0.0,1.0, float(ndvi),0.01, key="ndvi_input", on_change=record_start_time)
-del_ndvi_input = st.slider("ΔNDVI (Urban-Rural))",-0.5,0.5, float(del_ndvi),0.01, key="del_ndvi_input", on_change=record_start_time)
+ndvi_input = st.slider("Urban NDVI (Vegatation)",0.0,1.0, float(ndvi),0.01, key="ndvi_input", on_change=record_start_time)
+del_ndvi_input = st.slider("ΔNDVI (Urban-Rural) (Change in Vegetation)",-0.5,0.5, float(del_ndvi),0.01, key="del_ndvi_input", on_change=record_start_time)
 del_dem_input = st.slider("ΔDEM (Elevation Difference in m))",-50.0,50.0, float(del_dem),0.1, key="del_dem_input", on_change=record_start_time)
 albedo_input = st.slider("Albedo (0-1)",0.1,0.9,0.3,0.01, key="albedo_input", on_change=record_start_time)
-urban_frac_input = st.slider("Urban Fraction (0-1)",0.0,1.0,0.5,0.01, key="urban_frac_input", on_change=record_start_time)
+urban_frac_input = st.slider("Urban Fraction/ (0-1)",0.0,1.0,0.5,0.01, key="urban_frac_input", on_change=record_start_time)
 del_dem_input_scale = del_dem_input/100
 #formula model
 X_phys = pd.DataFrame({
