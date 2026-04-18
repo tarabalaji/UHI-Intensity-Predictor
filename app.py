@@ -50,7 +50,7 @@ def train_models(df):
      ml_model.fit(x_all, y_all)
      return phys_model, ml_model
      
-phys_model, ml_model = train_models(df)
+phys_model, ml_model = train_models()
 
 ALPHA, BETA, GAMMA = phys_model.coef_
 INTERCEPT = phys_model.intercept_
