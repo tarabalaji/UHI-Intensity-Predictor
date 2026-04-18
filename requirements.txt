@@ -4,7 +4,5 @@ numpy
 matplotlib
 scikit-learn
 xgboost
-time
-sklearn
 plotly
 openpyxl
