@@ -20,7 +20,8 @@ def load_data():
 df = load_data()
 
 @st.cache_resource
-def train_models(df):
+def train_models():
+     df = load_data()
      X_phys = pd.DataFrame({
         "inv_ndvi": 1 - df["NDVI_urb_CT_act"],
         "del_ndvi": df["DelNDVI_annual"],
