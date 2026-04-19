@@ -57,10 +57,10 @@ ALPHA, BETA, GAMMA = phys_model.coef_
 INTERCEPT = phys_model.intercept_
 
 
-st.title("Urban Heat Island Prediction Modeling Framework")
+st.title("UHIQ")
 st.write(
 """
-This software predicts and compares UHI intensity using a formula-based model and a ML-based linear regression model along with user-provided variables such as the vegetation, albedo, and building density.
+This urban heat island intensity modeling software predicts and compares UHI intensity using a formula-based model and a ML-based linear regression model along with user-provided variables such as the vegetation, albedo, and building density.
 """
 )
 
