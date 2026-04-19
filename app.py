@@ -9,7 +9,7 @@ from xgboost import XGBRegressor
 import time
 from sklearn.inspection import permutation_importance
 
-
+st.write("APP STARTED") 
 @st.cache_data
 def load_data():
     df = pd.read_excel("data.xlsx")
