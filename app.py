@@ -8,55 +8,10 @@ from sklearn.metrics import mean_absolute_error
 from xgboost import XGBRegressor
 import time
 from sklearn.inspection import permutation_importance
-
-
-@st.cache_data
-def load_data():
-    df = pd.read_excel("data.xlsx")
-    columns = ["Urban_name","NDVI_urb_CT_act","DelNDVI_annual","DelDEM","UHI_annual_day"]
-    df = df[columns]
-    df = df.dropna()
-    return df
-df = load_data()
-
-@st.cache_resource
-def train_models():
-     df = load_data()
-     X_phys = pd.DataFrame({
-        "inv_ndvi": 1 - df["NDVI_urb_CT_act"],
-        "del_ndvi": df["DelNDVI_annual"],
-        "del_dem": df["DelDEM"] / 100
-    })
-     y_phys = df["UHI_annual_day"]
-     phys_model = LinearRegression()
-     phys_model.fit(X_phys, y_phys)
-
-     x_all = df[["NDVI_urb_CT_act","DelNDVI_annual","DelDEM"]].copy()
-     y_all = df["UHI_annual_day"]
-     x_all["DelDEM"] /= 100
-
-     ml_model = XGBRegressor(
-        n_estimators=1000,
-        learning_rate=0.03,
-        max_depth=4,
-        min_child_weight=3,
-        subsample=0.85,
-        colsample_bytree=0.85,
-        reg_alpha=0.1,
-        reg_lambda=1.0,
-        objective="reg:squarederror",
-        random_state=42
-    )
-     
-     ml_model.fit(x_all, y_all)
-     return phys_model, ml_model
-     
-phys_model, ml_model = train_models()
-
-ALPHA, BETA, GAMMA = phys_model.coef_
-INTERCEPT = phys_model.intercept_
-
-
+df = pd.read_excel('data.xlsx')
+columns = ["Urban_name","NDVI_urb_CT_act","DelNDVI_annual","DelDEM","UHI_annual_day"]
+df = df[columns]
+df = df.dropna()
 st.title("Urban Heat Island Prediction Modeling Framework")
 st.write(
 """
@@ -102,6 +57,20 @@ albedo_input = st.slider("Albedo (0-1)",0.1,0.9,0.3,0.01, key="albedo_input", on
 urban_frac_input = st.slider("Urban Fraction/ (0-1)",0.0,1.0,0.5,0.01, key="urban_frac_input", on_change=record_start_time)
 del_dem_input_scale = del_dem_input/100
 #formula model
+X_phys = pd.DataFrame({
+    "inv_ndvi": 1 - df["NDVI_urb_CT_act"],
+    "del_ndvi": df["DelNDVI_annual"],
+    "del_dem": df["DelDEM"] / 100
+})
+
+y_phys = df["UHI_annual_day"]
+
+phys_model = LinearRegression()
+phys_model.fit(X_phys, y_phys)
+
+ALPHA, BETA, GAMMA = phys_model.coef_
+INTERCEPT = phys_model.intercept_
+
 uhi_formula_input = (INTERCEPT +
     ALPHA * (1 - ndvi_input) +
     BETA * del_ndvi_input +
@@ -110,7 +79,6 @@ st.subheader("UHI Calculation using Formula-based Model")
 
 st.write(f"**Predicted UHI (Formula Model):** {uhi_formula_input:.2f} °C")
 st.write(f"**Actual UHI:** {uhi_actual:.2f} °C")
-
 #formula sensitivity analysis
 ndvi_range = np.arange(0,1,0.05)
 predicted_uhi_sensitivity = []
@@ -136,6 +104,56 @@ fig2 = px.bar(comparison_df, x="Type", y="UHI (°C)", text = "UHI (°C)",title="
 st.plotly_chart(fig2)
 
 #ML model
+
+#leave one out
+train_df = (
+    df[df["Urban_name"] != city]
+    .groupby("Urban_name")
+    .median()
+    .reset_index()
+)
+
+test_df = (
+    df[df["Urban_name"] == city]
+    .groupby("Urban_name")
+    .median()
+    .reset_index()
+)
+
+x_train = train_df[["NDVI_urb_CT_act", "DelNDVI_annual", "DelDEM"]]
+y_train = train_df["UHI_annual_day"]
+
+x_test = test_df[["NDVI_urb_CT_act", "DelNDVI_annual", "DelDEM"]]
+y_test = test_df["UHI_annual_day"]
+x_train = x_train.copy()
+x_test = x_test.copy()
+x_train["DelDEM"] = x_train["DelDEM"] / 100
+x_test["DelDEM"] = x_test["DelDEM"] / 100
+
+ml_model = XGBRegressor(
+    n_estimators=1000,
+    learning_rate=0.03,
+    max_depth=4,
+    min_child_weight=3,
+    subsample=0.85,
+    colsample_bytree=0.85,
+    reg_alpha=0.1,   
+    reg_lambda=1.0,   
+    objective="reg:squarederror",
+    random_state=42
+)
+
+ml_model.fit(
+    x_train,
+    y_train,
+    eval_set=[(x_test, y_test)],
+    verbose=False
+)
+
+y_test_pred = ml_model.predict(x_test)
+uhi_ml_city = y_test_pred.mean()
+
+
 ml_input = pd.DataFrame([{
     "NDVI_urb_CT_act": ndvi_input,
     "DelNDVI_annual": del_ndvi_input,
@@ -143,6 +161,7 @@ ml_input = pd.DataFrame([{
 }])
 uhi_ml_input = ml_model.predict(ml_input)[0]
 
+mae_ml = mean_absolute_error(y_test, y_test_pred)
 st.subheader("UHI Calculation using ML-based Model")
 
 st.write(f"**Predicted UHI (ML Model):** {uhi_ml_input:.2f} °C")
@@ -174,9 +193,6 @@ fig3 = px.bar(comparison_df, x="Type", y="UHI (°C)", text = "UHI (°C)",title="
 st.plotly_chart(fig3)
 
 #model accuracy evaluation
-x_test = df[["NDVI_urb_CT_act","DelNDVI_annual","DelDEM"]].copy()
-y_test = df["UHI_annual_day"]
-x_test["DelDEM"] /= 100
 y_pred_ml = ml_model.predict(x_test)
 
 def formula_model(row):
@@ -213,6 +229,7 @@ st.plotly_chart(fig_error)
 x_all = df[["NDVI_urb_CT_act","DelNDVI_annual","DelDEM"]].copy()
 y_all = df["UHI_annual_day"]
 x_all["DelDEM"] /= 100
+ml_model.fit(x_all, y_all)
 perm = permutation_importance(ml_model, x_all, y_all, n_repeats=5, random_state=42, scoring="neg_mean_absolute_error")
 perm_df = pd.DataFrame({"Feature": x_all.columns, "Permutation Importance": perm.importances_mean}).sort_values("Permutation Importance", ascending=False)
 st.subheader("Permutation Importance (ML Features)")
