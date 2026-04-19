@@ -220,6 +220,7 @@ st.dataframe(perm_df)
 fig_perm = px.bar(perm_df, x="Feature", y="Permutation Importance", title="Permutation Importance of Features", text_auto=".3f")
 st.plotly_chart(fig_perm)
 
+st.write("DEBUG: ML sensitivity running")
 st.write("ML sensitivity output:", predicted_ml_sensitivity[:10])
 
 start = st.session_state.get("start_time")
