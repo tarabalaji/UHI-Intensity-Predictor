@@ -1,51 +1,128 @@
-Urban Heat Island Prediction Modeling Framework
+# UHIQ – Urban Heat Island Prediction System
 
-Overview
-This project provides an interactive framework to predict and analyze Urban Heat Island (UHI) intensity using both a formula-based model and a machine learning (ML) model. Users can explore how urban characteristics—such as vegetation, elevation differences, albedo, and urban fraction—affect UHI intensity across different cities.
+UHIQ is a Streamlit-based modeling tool that predicts Urban Heat Island (UHI) intensity using two parallel approaches:
 
-The software allows:
-City-specific UHI data exploration
-Sensitivity analysis of vegetation and urban variables
-Comparison between formula-based and ML-based predictions
-Evaluation of model accuracy (Mean Absolute Error)
+1. A **physics-inspired linear model derived from environmental relationships**
+2. A **machine learning model (XGBoost regression)** trained on urban climate data
 
-Built with Python, Streamlit, Plotly, and XGBoost, this tool is designed for environmental research, urban planning, and educational purposes.
+The system allows users to modify urban environmental variables and immediately observe their effect on predicted UHI intensity.
 
-Features
-Interactive City Selection: View urban-specific data in a table format.
-Simulate Urban Changes: Adjust sliders for NDVI, elevation, albedo, and urban fraction to predict UHI.
-Formula-based Prediction: Uses linear regression on physical variables to predict UHI.
-ML-based Prediction: Uses an XGBoost regressor to predict UHI for a city based on other cities’ data.
-Sensitivity Analysis: Visualize the impact of vegetation (NDVI) on predicted UHI.
-Comparison Visualizations: Compare actual UHI, formula predictions, and ML predictions using interactive bar charts.
-Model Accuracy Evaluation: Mean Absolute Error for formula-based and ML models.
+---
 
-Installation
-Clone the repository:
-git clone https://github.com/taroboba11/UHI-Intensity-Predictor.git
-cd urban-heat-island
-Install required packages (preferably in a virtual environment):
+## Core Idea
+
+Urban Heat Island intensity is strongly influenced by land surface characteristics such as vegetation density, elevation variation, and land cover change.
+
+UHIQ models this relationship using:
+
+- A simplified interpretable equation derived from linear regression coefficients
+- A nonlinear ML model trained on the same feature space for comparison
+
+This allows direct evaluation of:
+- interpretability vs predictive power
+- physical assumptions vs learned patterns
+
+---
+
+## Inputs
+
+The model uses the following features:
+
+- `NDVI_urb_CT_act` → urban vegetation index
+- `DelNDVI_annual` → vegetation difference between urban and rural areas
+- `DelDEM` → elevation difference (scaled by 1/100 internally)
+- `UHI_annual_day` → observed target variable
+
+Optional simulation inputs:
+- NDVI (vegetation level)
+- ΔNDVI (vegetation contrast)
+- ΔDEM (elevation change)
+- Albedo
+- Urban fraction
+
+---
+
+## Models
+
+### 1. Formula-Based Model (Linear Regression)
+
+The model learns coefficients from data and is expressed as:
+
+UHI = intercept + α(1 − NDVI) + β(ΔNDVI) + γ(ΔDEM)
+
+This version is used for:
+- interpretability
+- sensitivity analysis
+- comparison against ML model
+
+---
+
+### 2. Machine Learning Model (XGBoost)
+
+An XGBoost regressor is trained on the same input features:
+
+- NDVI
+- ΔNDVI
+- ΔDEM
+
+Key parameters:
+- 1000 estimators
+- learning_rate = 0.03
+- max_depth = 4
+- subsample = 0.85
+- regularization (L1 + L2 enabled)
+
+This model captures nonlinear interactions between variables.
+
+---
+
+## Features of the App
+
+### City-Level Data Exploration
+- Select any urban area from dataset
+- View corresponding environmental and UHI values
+
+### Real-Time Simulation
+Users can modify environmental variables and immediately see:
+- Formula model prediction
+- ML model prediction
+- Actual observed UHI
+
+### Sensitivity Analysis
+- NDVI is varied across range [0,1]
+- Effect on UHI is computed for both models
+- Results visualized as line charts
+
+### Model Comparison
+- Side-by-side comparison of:
+  - Actual UHI
+  - Formula prediction
+  - ML prediction
+
+### Model Evaluation
+- Mean Absolute Error (MAE) is computed for both models
+- Lower MAE indicates better predictive accuracy
+
+### Feature Importance
+- Permutation importance is used to evaluate feature influence in ML model
+
+### Performance Tracking
+- Tracks interaction runtime per session
+- Computes average response time across interactions
+
+---
+
+## Output Visualizations
+
+- UHI vs NDVI sensitivity curves (Formula + ML)
+- Actual vs predicted bar comparisons
+- Feature importance ranking
+- Error comparison (MAE chart)
+
+---
+
+## How to Run
+
+### Install dependencies
+```bash
 pip install streamlit pandas numpy plotly scikit-learn xgboost openpyxl
-Place the dataset data.xlsx in the project directory. Ensure it contains the columns:
-Urban_name, NDVI_urb_CT_act, DelNDVI_annual, DelDEM, UHI_annual_day
-
-Usage
-Run the Streamlit app with:
-streamlit run app.py
-Select a city from the dropdown menu.
-Adjust sliders under “Simulate Changes” to explore the effect of urban variables.
-View predicted UHI values from both formula-based and ML-based models.
-Explore sensitivity analyses and comparison charts.
-Check model accuracy with Mean Absolute Error metrics.
-
-Project Structure
-├─ app.py               # Main Streamlit application
-├─ data.xlsx            # Dataset with urban variables and UHI values
-├─ README.md            # Project documentation
-
-Key Libraries
-Streamlit: Interactive UI and dashboarding
-Pandas & NumPy: Data handling and manipulation
-Plotly Express: Interactive visualizations
-Scikit-learn: Formula-based linear regression
-XGBoost: ML regression for UHI prediction
