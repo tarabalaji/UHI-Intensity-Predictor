@@ -221,7 +221,11 @@ fig_perm = px.bar(perm_df, x="Feature", y="Permutation Importance", title="Permu
 st.plotly_chart(fig_perm)
 
 st.write("DEBUG: ML sensitivity running")
-st.write("ML sensitivity output:", predicted_ml_sensitivity[:10])
+st.write("ML sensitivity output:")
+st.dataframe(pd.DataFrame({
+    "NDVI": ndvi_range[:10],
+    "UHI": predicted_ml_sensitivity[:10]
+}))
 
 start = st.session_state.get("start_time")
 if start:
