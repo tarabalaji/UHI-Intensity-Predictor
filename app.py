@@ -36,14 +36,14 @@ def train_models():
      x_all["DelDEM"] /= 100
 
      ml_model = XGBRegressor(
-        n_estimators=1000,
-        learning_rate=0.03,
-        max_depth=4,
-        min_child_weight=3,
-        subsample=0.85,
-        colsample_bytree=0.85,
-        reg_alpha=0.1,
-        reg_lambda=1.0,
+        n_estimators=300,
+        learning_rate=0.1,
+        max_depth=6,
+        min_child_weight=1,
+        subsample=1.0,
+        colsample_bytree=1.0,
+        reg_alpha=0,
+        reg_lambda=0,
         objective="reg:squarederror",
         random_state=42
     )
