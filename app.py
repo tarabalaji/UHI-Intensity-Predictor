@@ -9,7 +9,6 @@ from xgboost import XGBRegressor
 import time
 from sklearn.inspection import permutation_importance
 
-st.write("APP STARTED") 
 @st.cache_data
 def load_data():
     df = pd.read_excel("data.xlsx")
@@ -32,18 +31,22 @@ def train_models():
      phys_model.fit(X_phys, y_phys)
 
      x_all = df[["NDVI_urb_CT_act","DelNDVI_annual","DelDEM"]].copy()
+     x_all["NDVI_x_DelNDVI"] = (
+        x_all["NDVI_urb_CT_act"] * x_all["DelNDVI_annual"]
+     )
      y_all = df["UHI_annual_day"]
      x_all["DelDEM"] /= 100
 
      ml_model = XGBRegressor(
-        n_estimators=300,
-        learning_rate=0.1,
-        max_depth=6,
+        n_estimators=1200,
+        learning_rate=0.05,
+        max_depth=7,
         min_child_weight=1,
-        subsample=1.0,
-        colsample_bytree=1.0,
-        reg_alpha=0,
-        reg_lambda=0,
+        subsample=0.9,
+        colsample_bytree=0.9,
+        reg_alpha=0.01,
+        reg_lambda=1.0,
+        gamma = 0, 
         objective="reg:squarederror",
         random_state=42
     )
@@ -84,20 +87,52 @@ city = st.selectbox(
     on_change=record_start_time
 )
 city_data = df[df["Urban_name"]== city]
+city_data = city_data.sort_values("UHI_annual_day")
+low_row = city_data.loc[city_data["UHI_annual_day"].idxmin()]
+high_row = city_data.loc[city_data["UHI_annual_day"].idxmax()]
+typical_row = city_data.iloc[len(city_data)//2]
+
 st.subheader(f"City Data")
 st.dataframe(city_data)
 
-ndvi = city_data["NDVI_urb_CT_act"].mean()
-del_ndvi = city_data["DelNDVI_annual"].mean()
-del_dem = city_data["DelDEM"].mean()
-del_dem_scale = del_dem/100
-uhi_actual = city_data["UHI_annual_day"].mean()
+mode = st.radio("Select Scenario", ["Low Heat", "Typical", "High Heat"])
+
+if mode == "Low Heat":
+    row = low_row
+elif mode == "High Heat":
+    row = high_row
+else:
+    row = typical_row
+ndvi = row["NDVI_urb_CT_act"]
+del_ndvi = row["DelNDVI_annual"]
+del_dem = row["DelDEM"]
+del_dem_scale = del_dem / 100
+uhi_actual = row["UHI_annual_day"]
 
 #sliders
-st.subheader("Simulate Changes")
-ndvi_input = st.slider("Urban NDVI (Vegatation)",0.0,1.0, float(ndvi),0.01, key="ndvi_input", on_change=record_start_time)
-del_ndvi_input = st.slider("ΔNDVI (Urban-Rural) (Change in Vegetation)",-0.5,0.5, float(del_ndvi),0.01, key="del_ndvi_input", on_change=record_start_time)
-del_dem_input = st.slider("ΔDEM (Elevation Difference in m))",-50.0,50.0, float(del_dem),0.1, key="del_dem_input", on_change=record_start_time)
+ndvi_input = st.slider(
+    "Urban NDVI",
+    0.0, 1.0,
+    float(row["NDVI_urb_CT_act"]),
+    0.01,
+    key=f"ndvi_{city}_{mode}"
+)
+
+del_ndvi_input = st.slider(
+    "ΔNDVI",
+    -0.5, 0.5,
+    float(row["DelNDVI_annual"]),
+    0.01,
+    key=f"delndvi_{city}_{mode}"
+)
+
+del_dem_input = st.slider(
+    "ΔDEM",
+    -50.0, 50.0,
+    float(row["DelDEM"]),
+    0.1,
+    key=f"deldem_{city}_{mode}"
+)
 albedo_input = st.slider("Albedo (0-1)",0.1,0.9,0.3,0.01, key="albedo_input", on_change=record_start_time)
 urban_frac_input = st.slider("Urban Fraction/ (0-1)",0.0,1.0,0.5,0.01, key="urban_frac_input", on_change=record_start_time)
 del_dem_input_scale = del_dem_input/100
@@ -139,10 +174,17 @@ st.plotly_chart(fig2)
 ml_input = pd.DataFrame([{
     "NDVI_urb_CT_act": ndvi_input,
     "DelNDVI_annual": del_ndvi_input,
-    "DelDEM": del_dem_input / 100
+    "DelDEM": del_dem_input
 }])
-uhi_ml_input = ml_model.predict(ml_input)[0]
 
+ml_input["NDVI_x_DelNDVI"] = ml_input["NDVI_urb_CT_act"] * ml_input["DelNDVI_annual"]
+ml_input["DelDEM"] /= 100
+
+raw_ml = ml_model.predict(ml_input)[0]
+
+alpha_mix = 0.6  
+
+uhi_ml_input = alpha_mix * raw_ml + (1 - alpha_mix) * uhi_formula_input
 st.subheader("UHI Calculation using ML-based Model")
 
 st.write(f"**Predicted UHI (ML Model):** {uhi_ml_input:.2f} °C")
@@ -152,7 +194,8 @@ predicted_ml_sensitivity = [
     ml_model.predict(pd.DataFrame([{
         "NDVI_urb_CT_act": ndvi_val,
         "DelNDVI_annual": del_ndvi_input,
-        "DelDEM": del_dem_input / 100
+        "DelDEM": del_dem_input,
+        "NDVI_x_DelNDVI": ndvi_val * del_ndvi_input
     }]))[0]
     for ndvi_val in ndvi_range
 ]
@@ -175,7 +218,11 @@ st.plotly_chart(fig3)
 
 #model accuracy evaluation
 x_test = df[["NDVI_urb_CT_act","DelNDVI_annual","DelDEM"]].copy()
-y_test = df["UHI_annual_day"]
+
+x_test["NDVI_x_DelNDVI"] = (
+    x_test["NDVI_urb_CT_act"] * x_test["DelNDVI_annual"]
+)
+
 x_test["DelDEM"] /= 100
 y_pred_ml = ml_model.predict(x_test)
 
@@ -188,7 +235,7 @@ def formula_model(row):
     )
 
 y_pred_formula = x_test.apply(formula_model, axis=1)
-
+y_test = df["UHI_annual_day"]
 mae_ml = mean_absolute_error(y_test, y_pred_ml)
 mae_formula = mean_absolute_error(y_test, y_pred_formula)
 
@@ -211,16 +258,25 @@ fig_error = px.bar(
 st.plotly_chart(fig_error)
 
 x_all = df[["NDVI_urb_CT_act","DelNDVI_annual","DelDEM"]].copy()
-y_all = df["UHI_annual_day"]
+x_all["NDVI_x_DelNDVI"] = (
+    x_all["NDVI_urb_CT_act"] * x_all["DelNDVI_annual"]
+)
 x_all["DelDEM"] /= 100
-perm = permutation_importance(ml_model, x_all, y_all, n_repeats=5, random_state=42, scoring="neg_mean_absolute_error")
+y_all = df["UHI_annual_day"]
+perm = permutation_importance(
+    ml_model,
+    x_all,
+    y_all,
+    n_repeats=5,
+    random_state=42,
+    scoring="neg_mean_absolute_error"
+)
 perm_df = pd.DataFrame({"Feature": x_all.columns, "Permutation Importance": perm.importances_mean}).sort_values("Permutation Importance", ascending=False)
 st.subheader("Permutation Importance (ML Features)")
 st.dataframe(perm_df)
 fig_perm = px.bar(perm_df, x="Feature", y="Permutation Importance", title="Permutation Importance of Features", text_auto=".3f")
 st.plotly_chart(fig_perm)
 
-st.write("DEBUG: ML sensitivity running")
 st.write("ML sensitivity output:")
 st.dataframe(pd.DataFrame({
     "NDVI": ndvi_range[:10],
