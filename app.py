@@ -95,7 +95,7 @@ typical_row = city_data.iloc[len(city_data)//2]
 st.subheader(f"City Data")
 st.dataframe(city_data)
 
-mode = st.radio("Select Scenario", ["Low Heat", "Typical", "High Heat"])
+mode = st.radio("Select Scenario", ["Low Heat", "Typical", "High Heat"], index =1)
 
 if mode == "Low Heat":
     row = low_row
